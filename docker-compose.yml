@@ -1,130 +1,51 @@
-# docker-compose.yml
-version: "3.8"
+global:
+  resolve_timeout: 5m
+  # Slack webhook URL은 환경변수로 설정됨
 
-networks:
-  monitoring:
-    driver: bridge
+route:
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: "slack-notifications"
 
-volumes:
-  prometheus_data:
-  grafana_data:
-  alertmanager_data:
+  routes:
+    - match:
+        severity: critical
+      receiver: "slack-critical"
+      continue: false
+    - match:
+        severity: warning
+      receiver: "slack-warnings"
+      continue: false
 
-services:
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    restart: unless-stopped
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/alerts:/etc/prometheus/alerts
-      - prometheus_data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/consoles"
-      - "--web.enable-lifecycle"
-      - "--storage.tsdb.retention.time=30d"
-    ports:
-      - "9090:9090"
-    networks:
-      - monitoring
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    restart: unless-stopped
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-clock-panel
-      - GF_SERVER_ROOT_URL=http://localhost:3014 # 👈 3014로 변경
-      - GF_USERS_ALLOW_SIGN_UP=false
-    ports:
-      - "3014:3000" # 👈 외부 3014 → 내부 3000
-    networks:
-      - monitoring
-    depends_on:
-      - prometheus
+receivers:
+  - name: "slack-notifications"
+    slack_configs:
+      - api_url: "SLACK_WEBHOOK_URL_PLACEHOLDER"
+        send_resolved: true
+        channel: "#monitoring"
+        title: "Alert: {{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}{{ end }}"
 
-  # docker-compose.yml의 alertmanager 섹션
-  # alertmanager 섹션에 환경변수 추가
-  # docker-compose.yml의 alertmanager 섹션
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: alertmanager
-    restart: unless-stopped
-    volumes:
-      - ./alertmanager:/etc/alertmanager
-      - alertmanager_data:/alertmanager
-    environment:
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-    command:
-      - sh
-      - -c
-      - |
-        cat > /etc/alertmanager/config.yml << EOL
-        global:
-          resolve_timeout: 5m
-          slack_api_url: '${SLACK_WEBHOOK_URL}'
+  - name: "slack-critical"
+    slack_configs:
+      - api_url: "SLACK_WEBHOOK_URL_PLACEHOLDER"
+        send_resolved: true
+        channel: "#monitoring"
+        username: "Critical Alert"
+        icon_emoji: ":rotating_light:"
+        color: "danger"
+        title: "🚨 CRITICAL: {{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}{{ end }}"
 
-        route:
-          group_by: ['alertname']
-          group_wait: 10s
-          group_interval: 10s
-          repeat_interval: 12h
-          receiver: 'slack-notifications'
-
-        receivers:
-          - name: 'slack-notifications'
-            slack_configs:
-              - send_resolved: true
-                channel: '#monitoring'
-                title: 'Alert: {{ .GroupLabels.alertname }}'
-                text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
-        EOL
-        /bin/alertmanager --config.file=/etc/alertmanager/config.yml --storage.path=/alertmanager
-    ports:
-      - "9093:9093"
-    networks:
-      - monitoring
-
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
-    restart: unless-stopped
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - "--path.procfs=/host/proc"
-      - "--path.rootfs=/rootfs"
-      - "--path.sysfs=/host/sys"
-      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
-    ports:
-      - "9100:9100"
-    networks:
-      - monitoring
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    restart: unless-stopped
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-    ports:
-      - "8080:8080"
-    networks:
-      - monitoring
-    privileged: true
-    devices:
-      - /dev/kmsg
+  - name: "slack-warnings"
+    slack_configs:
+      - api_url: "SLACK_WEBHOOK_URL_PLACEHOLDER"
+        send_resolved: true
+        channel: "#monitoring"
+        username: "Warning Alert"
+        icon_emoji: ":warning:"
+        color: "warning"
+        title: "⚠️ Warning: {{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}{{ end }}"
