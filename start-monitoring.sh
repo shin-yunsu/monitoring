@@ -1,7 +1,14 @@
 #!/bin/bash
-# start-monitoring.sh
 
 echo "🚀 모니터링 시스템 시작..."
+
+# .env 파일 로드
+source .env
+
+# Alertmanager config에 Webhook URL 주입
+cp alertmanager/config.yml alertmanager/config.yml.tmp
+sed -i "s|SLACK_WEBHOOK_URL_PLACEHOLDER|${SLACK_WEBHOOK_URL}|g" alertmanager/config.yml.tmp
+mv alertmanager/config.yml.tmp alertmanager/config.yml
 
 # Docker Compose 실행
 docker compose up -d
@@ -18,11 +25,6 @@ echo "
 
 접속 정보:
 - Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000 (admin / ${GRAFANA_PASSWORD:-admin123})
+- Grafana: http://localhost:3014 (${GRAFANA_USER} / ${GRAFANA_PASSWORD})
 - Alertmanager: http://localhost:9093
-
-Grafana 대시보드 추가:
-1. Grafana 접속
-2. Dashboard > Import
-3. ID 입력: 1860 (Node Exporter Full)
 "
