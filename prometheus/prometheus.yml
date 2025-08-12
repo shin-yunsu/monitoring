@@ -1,0 +1,57 @@
+# prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'production-monitor'
+
+# Alertmanager 설정
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Alert 규칙 파일 로드
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"
+
+# 스크레이프 설정
+scrape_configs:
+  # Prometheus 자체 모니터링
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          instance: 'prometheus'
+
+  # 로컬 Node Exporter (Docker)
+  - job_name: 'node-exporter-local'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance: 'monitoring-server'
+          environment: 'monitoring'
+
+  # 원격 EC2 Node Exporter
+  - job_name: 'node-exporter-ec2'
+    static_configs:
+      - targets: ['172.31.28.214:9100']
+        labels:
+          instance: 'production-ec2'
+          environment: 'production'
+          region: 'ap-northeast-2'
+
+  # Docker 컨테이너 모니터링
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          instance: 'docker-containers'
+
+  # Grafana 모니터링
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          instance: 'grafana'

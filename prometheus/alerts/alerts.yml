@@ -1,0 +1,62 @@
+groups:
+  - name: node_alerts
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance, environment) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "CPU 사용률 높음 - {{ $labels.instance }}"
+          description: |
+            📊 서버: {{ $labels.instance }}
+            🔥 CPU 사용률: {{ $value | printf "%.2f" }}%
+            📍 환경: {{ $labels.environment }}
+            ⏰ 지속 시간: 5분 이상
+
+      - alert: NodeDown
+        expr: up{job=~"node-exporter.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          summary: "🔴 서버 다운 - {{ $labels.instance }}"
+          description: |
+            💥 긴급: 서버가 응답하지 않습니다!
+            
+            • 서버: {{ $labels.instance }}
+            • 환경: {{ $labels.environment }}
+            • Job: {{ $labels.job }}
+            
+            즉시 확인이 필요합니다!
+
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs|vfat"} / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          team: devops
+        annotations:
+          summary: "💾 디스크 공간 위험 - {{ $labels.instance }}"
+          description: |
+            🚨 디스크 공간이 거의 없습니다!
+            
+            서버: {{ $labels.instance }}
+            마운트: {{ $labels.mountpoint }}
+            사용률: {{ $value | printf "%.2f" }}%
+            
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          team: devops
+        annotations:
+          summary: "메모리 사용률 높음 - {{ $labels.instance }}"
+          description: |
+            💾 서버: {{ $labels.instance }}
+            📊 메모리 사용률: {{ $value | printf "%.2f" }}%
+            📍 환경: {{ $labels.environment }}
